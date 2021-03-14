@@ -4,6 +4,7 @@ using BepInEx.Logging;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Reflection.Emit;
 using UnityEngine;
 
@@ -125,7 +126,6 @@ namespace RevenantsRevenge
             }
             return themes.Join();
         }
-
 
         [HarmonyPatch(typeof(Location), "Awake")]
         class ResizeDungeonEnvironmentPatch
@@ -299,7 +299,11 @@ namespace RevenantsRevenge
                         var prev2 = __instance.m_levelSetups[i - 2];
 
                         var scaleFactor = 0.1f;
-                        levelSetup.m_scale = 1.0f + scaleFactor*(i+1);
+                        if (maxMobLevel.Value > 5)
+                        {
+                            scaleFactor = 0.05f;
+                        }
+                        levelSetup.m_scale = prev.m_scale + scaleFactor;
                         levelSetup.m_hue = prev.m_hue * 2 - prev2.m_hue;
                         levelSetup.m_saturation = prev.m_saturation * 2 - prev2.m_saturation;
                         levelSetup.m_value = prev.m_value * 2 - prev2.m_value;
@@ -336,5 +340,69 @@ namespace RevenantsRevenge
             }
         }
 
+        [HarmonyPatch(typeof(EnemyHud), "ShowHud")]
+        private class ShowStar
+        {
+            private static int starOffset = 16;
+            private static bool flag = false;
+            private static void Prefix(ref EnemyHud __instance)
+            {
+                if (maxMobLevel.Value > 7 && !flag)
+                {
+                    starOffset = 10;
+                    MoveOriginalLevel3(__instance.m_baseHud);
+                    flag = true;
+                }
+            }
+
+            private static void Postfix(Character c, Dictionary<Character, object> ___m_huds)
+            {
+                if (maxMobLevel.Value <= 3) return;
+
+                var hud = ___m_huds[c];
+                var guiObject = (GameObject)typeof(EnemyHud).GetNestedType("HudData", BindingFlags.NonPublic).GetField("m_gui").GetValue(hud);
+
+                if (HasLevelObject(guiObject, 2))
+                {
+                    SetupStarPositions(guiObject, c.GetLevel());
+                }
+            }
+
+            private static void SetupStarPositions(GameObject guiObject, int level)
+            {
+                for (int i = 2; i <= maxMobLevel.Value; i++)
+                {
+                    var name = $"level_{i}";
+                    if (!HasLevelObject(guiObject, i))
+                    {
+                        var gameObject = Instantiate(guiObject.transform.Find($"level_{i-1}").gameObject, guiObject.transform);
+                        gameObject.name = name;
+                        var left = maxMobLevel.Value > 7 ? 28 : 40;
+                        CreateStar(gameObject, starOffset * i - left, i);
+                    }
+                    guiObject.transform.Find(name).gameObject.SetActive(i <= level);
+                }
+            }
+
+            private static bool HasLevelObject(GameObject go, int level)
+            {
+                return go.transform.Find($"level_{level}");
+            }
+
+            private static void MoveOriginalLevel3(GameObject go)
+            {
+                var lgo = go.transform.Find("level_3").gameObject;
+                var firstStar = lgo.transform.Find("star");
+                var existingStar = lgo.transform.Find("star (1)");
+                existingStar.localPosition = firstStar.localPosition + new Vector3(starOffset, 0);
+            }
+
+            private static void CreateStar(GameObject parent, int offset, int i)
+            {
+                var star = parent.transform.Find("star");
+                var go = Instantiate(star.gameObject, parent.transform);
+                go.transform.localPosition = new Vector3(offset, 0f);
+            }
+        }
     }
 }

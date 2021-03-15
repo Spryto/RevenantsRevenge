@@ -14,6 +14,7 @@ namespace RevenantsRevenge
         public static ConfigEntry<int> minMobLevel;
         public static ConfigEntry<int> maxMobLevel;
         public static ConfigEntry<int> mobLevelChance;
+        public static ConfigEntry<int> mobScale;
 
         public static void SetConfig(string name, ConfigFile config)
         {
@@ -54,6 +55,12 @@ namespace RevenantsRevenge
                 "Chance for dungeon/point of interest mobs to spawn higher than the minimum level.",
                 new AcceptableValueRange<int>(0, 100));
             mobLevelChance = config.Bind(name + ".Global", "mob_lvl_chance", 15, mobLevelChanceDescription);
+
+            var mobScaleDescription = new ConfigDescription(
+                "How much bigger are higher level mobs?" +
+                "Percentage, per level",
+                new AcceptableValueRange<int>(0, 500));
+            mobScale = config.Bind(name + ".Global", "mob_scale", 10, mobScaleDescription);
 
             isDefaultDifficulty = minMobLevel.Value == 1 && maxMobLevel.Value == 3 && mobLevelChance.Value == 15;
         }

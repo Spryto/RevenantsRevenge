@@ -230,14 +230,14 @@ namespace RevenantsRevenge
                 if (count == 0)
                 {
                     var levelSetup = new LevelEffects.LevelSetup();
-                    levelSetup.m_scale = 1.1f;
+                    levelSetup.m_scale = 1f + Settings.mobScale.Value / 100f;
                     levelSetup.m_hue = 0.3f;
                     levelSetup.m_saturation = 0.3f;
                     levelSetup.m_value = 0.1f;
                     __instance.m_levelSetups.Add(levelSetup);
 
                     var levelSetup2 = new LevelEffects.LevelSetup();
-                    levelSetup.m_scale = 1.2f;
+                    levelSetup.m_scale = 1f + 2 * Settings.mobScale.Value / 100f; ;
                     levelSetup.m_hue = 0.4f;
                     levelSetup.m_saturation = 0.35f;
                     levelSetup.m_value = 0.15f;
@@ -252,11 +252,7 @@ namespace RevenantsRevenge
                         var prev = __instance.m_levelSetups[i - 1];
                         var prev2 = __instance.m_levelSetups[i - 2];
 
-                        var scaleFactor = 0.1f;
-                        if (Settings.maxMobLevel.Value > 5)
-                        {
-                            scaleFactor = 0.05f;
-                        }
+                        var scaleFactor = Settings.mobScale.Value / 100f;
                         levelSetup.m_scale = prev.m_scale + scaleFactor;
                         levelSetup.m_hue = prev.m_hue * 2 - prev2.m_hue;
                         levelSetup.m_saturation = prev.m_saturation * 2 - prev2.m_saturation;
@@ -294,7 +290,7 @@ namespace RevenantsRevenge
                     }
                     yield return instruction;
                 }
-                if (found is false)
+                if (found is false && !Settings.isDefaultDifficulty)
                     logger.LogError("Cannot find Math.Pow in CharacterDrop.GenerateDropList");
             }
         }

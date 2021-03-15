@@ -1,5 +1,4 @@
 ﻿using BepInEx;
-using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
 using System;
@@ -18,62 +17,13 @@ namespace RevenantsRevenge
         private const string NAME = "Revenants Revenge";
         private const string VERSION = "1.0.0";
 
-        private static ManualLogSource logger;
+        static ManualLogSource logger;
 
-        private static ConfigFile config;
-
-        private static ConfigEntry<int> minimumDungeonSize;
-        private static ConfigEntry<int> maximumDungeonSize;
-        private static ConfigEntry<int> minimumCampSize;
-        private static ConfigEntry<int> maximumCampSize;
-        private static ConfigEntry<int> minMobLevel;
-        private static ConfigEntry<int> maxMobLevel;
-        private static ConfigEntry<int> mobLevelChance;
-        // TODO spawn chance config
         
         void Awake()
         {
             logger = Logger;
-            config = Config;
-
-            var minConfigDescription = new ConfigDescription(
-                "Dungeons will generate with at least this many rooms placed. \n" +
-                "In vanilla Valheim, this value is 3.",
-                new AcceptableValueRange<int>(0, 200));
-            minimumDungeonSize = config.Bind(NAME + ".Global", "min_rooms", 15, minConfigDescription);
-
-            var maxConfigDescription = new ConfigDescription(
-                "Dungeons will attempt to place this many rooms. \n" +
-                "In vanilla Valheim, this value varies based on dungeon type but tends to be 30 or 40." +
-                "Expect fps drops in dungeons if this is over 100.",
-                new AcceptableValueRange<int>(0, 200));
-            maximumDungeonSize = config.Bind(NAME + ".Global", "max_rooms", 60, maxConfigDescription);
-
-            var minCampDescription = new ConfigDescription(
-                "Camps will generate with at least this many components placed. \n",
-                new AcceptableValueRange<int>(0, 80));
-            minimumCampSize = config.Bind(NAME + ".Global", "camp_min", 25, minCampDescription);
-
-            var maxCampDescription = new ConfigDescription(
-                "Camps will attempt to place this many components.",
-                new AcceptableValueRange<int>(0, 80));
-            maximumCampSize = config.Bind(NAME + ".Global", "camp_max", 40, maxCampDescription);
-
-            var mobMinLvlDescription = new ConfigDescription(
-                "Minimum level of dungeon/point of interest mobs. Level 1 (default) means Zero stars.",
-                new AcceptableValueRange<int>(0, 10));
-            minMobLevel = config.Bind(NAME + ".Global", "mob_min_lvl", 1, mobMinLvlDescription);
-
-            var mobMaxLvlDescription = new ConfigDescription(
-                "Maximum level of dungeon/point of interest mobs. Level 3 (default) means 2 Stars.",
-                new AcceptableValueRange<int>(0, 10));
-            maxMobLevel = config.Bind(NAME + ".Global", "mob_max_lvl", 3, mobMaxLvlDescription);
-
-            var mobLevelChanceDescription = new ConfigDescription(
-                "Chance for dungeon/point of interest mobs to spawn higher than the minimum level.",
-                new AcceptableValueRange<int>(0, 100));
-            mobLevelChance = config.Bind(NAME + ".Global", "mob_lvl_chance", 15, mobLevelChanceDescription);
-
+            Settings.SetConfig(NAME, Config);
 
             Harmony harmony = new Harmony(GUID);
             harmony.PatchAll();
@@ -83,14 +33,13 @@ namespace RevenantsRevenge
         [HarmonyPatch(typeof(DungeonGenerator), "Generate", new Type[] { typeof(int), typeof(ZoneSystem.SpawnMode) })]
         static void ApplyGeneratorSettings(ref DungeonGenerator __instance)
         {
-            __instance.m_minRooms = minimumDungeonSize.Value;
-            __instance.m_maxRooms = maximumDungeonSize.Value;
+            __instance.m_minRooms = Settings.minimumDungeonSize.Value;
+            __instance.m_maxRooms = Settings.maximumDungeonSize.Value;
 
-            __instance.m_campRadiusMin = minimumCampSize.Value;
-            __instance.m_campRadiusMax = maximumCampSize.Value;
+            __instance.m_campRadiusMin = Settings.minimumCampSize.Value;
+            __instance.m_campRadiusMax = Settings.maximumCampSize.Value;
 
             __instance.m_zoneSize = new Vector3(192f, 192f, 192f);
-            logger.LogInfo($"Attempting to make a bigger {GetThemeName(__instance.m_themes)}");
         }
 
         private static string GetThemeName(Room.Theme theme)
@@ -191,12 +140,12 @@ namespace RevenantsRevenge
                     return;
                 if (__state.isDungeon)
                 {
-                    var locationInstances = AccessTools.FieldRefAccess<ZoneSystem, Dictionary<Vector2i, ZoneSystem.LocationInstance>> (__instance, "m_locationInstances");
+                    var locationInstances = AccessTools.FieldRefAccess<ZoneSystem, Dictionary<Vector2i, ZoneSystem.LocationInstance>>(__instance, "m_locationInstances");
 
                     foreach (ZoneSystem.LocationInstance locationInstance in locationInstances.Values)
                     {
                         var prefabName = locationInstance.m_location.m_prefabName;
-                        if ((IsDungeon(prefabName) || IsTrollCave(prefabName)) && 
+                        if ((IsDungeon(prefabName) || IsTrollCave(prefabName)) &&
                             Vector3.Distance(locationInstance.m_position, __state.point) < __state.radius)
                         {
                             __result = true;
@@ -237,11 +186,11 @@ namespace RevenantsRevenge
                     return true;
                 }
                 retries++;
-                
+
                 if (retries > retry_limit) return false;
 
                 var methodHandler = MethodInvoker.GetHandler(AccessTools.Method(typeof(DungeonGenerator), "PlaceOneRoom"));
-                return (bool) methodHandler.Invoke(__instance, __state);
+                return (bool)methodHandler.Invoke(__instance, __state);
             }
         }
 
@@ -249,6 +198,7 @@ namespace RevenantsRevenge
         [HarmonyPatch (typeof(SpawnSystem), "Spawn")]
         static void RemoveMinLevelUpDistance(ref SpawnSystem.SpawnData __0)
         {
+            if (Settings.isDefaultDifficulty) return;
             __0.m_levelUpMinCenterDistance = 0f;
         }
 
@@ -257,9 +207,11 @@ namespace RevenantsRevenge
         {
             static void Prefix(ref CreatureSpawner __instance)
             {
-                __instance.m_minLevel = minMobLevel.Value;
-                __instance.m_maxLevel = maxMobLevel.Value;
-                __instance.m_levelupChance = mobLevelChance.Value;
+                if (Settings.isDefaultDifficulty) return;
+
+                __instance.m_minLevel = Settings.minMobLevel.Value;
+                __instance.m_maxLevel = Settings.maxMobLevel.Value;
+                __instance.m_levelupChance = Settings.mobLevelChance.Value;
                 if (__instance.m_creaturePrefab.GetComponent(typeof(LevelEffects)) == null)
                 {
                     __instance.m_creaturePrefab.AddComponent(typeof(LevelEffects));
@@ -272,6 +224,8 @@ namespace RevenantsRevenge
         {
             static void Prefix(ref LevelEffects __instance)
             {
+                if (Settings.isDefaultDifficulty) return;
+
                 var count = __instance.m_levelSetups.Count;
                 if (count == 0)
                 {
@@ -290,16 +244,16 @@ namespace RevenantsRevenge
                     __instance.m_levelSetups.Add(levelSetup2);
                     count = __instance.m_levelSetups.Count;
                 }
-                if (count < maxMobLevel.Value)
+                if (count < Settings.maxMobLevel.Value)
                 {
-                    for (int i = count; i <= maxMobLevel.Value; i++)
+                    for (int i = count; i <= Settings.maxMobLevel.Value; i++)
                     {
                         var levelSetup = new LevelEffects.LevelSetup();
                         var prev = __instance.m_levelSetups[i - 1];
                         var prev2 = __instance.m_levelSetups[i - 2];
 
                         var scaleFactor = 0.1f;
-                        if (maxMobLevel.Value > 5)
+                        if (Settings.maxMobLevel.Value > 5)
                         {
                             scaleFactor = 0.05f;
                         }
@@ -329,6 +283,11 @@ namespace RevenantsRevenge
                 {
                     if (!found && instruction.Calls(AccessTools.Method(typeof(Mathf), "Pow")))
                     {
+                        if (Settings.isDefaultDifficulty)
+                        {
+                            yield return instruction;
+                            continue;
+                        }
                         yield return new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(ApplyLootFixPatch), "DropFormula"));
                         found = true;
                         continue;
@@ -347,7 +306,8 @@ namespace RevenantsRevenge
             private static bool flag = false;
             private static void Prefix(ref EnemyHud __instance)
             {
-                if (maxMobLevel.Value > 7 && !flag)
+                if (Settings.isDefaultDifficulty) return;
+                if (Settings.maxMobLevel.Value > 7 && !flag)
                 {
                     starOffset = 10;
                     MoveOriginalLevel3(__instance.m_baseHud);
@@ -357,7 +317,7 @@ namespace RevenantsRevenge
 
             private static void Postfix(Character c, Dictionary<Character, object> ___m_huds)
             {
-                if (maxMobLevel.Value <= 3) return;
+                if (Settings.isDefaultDifficulty) return;
 
                 var hud = ___m_huds[c];
                 var guiObject = (GameObject)typeof(EnemyHud).GetNestedType("HudData", BindingFlags.NonPublic).GetField("m_gui").GetValue(hud);
@@ -370,14 +330,14 @@ namespace RevenantsRevenge
 
             private static void SetupStarPositions(GameObject guiObject, int level)
             {
-                for (int i = 2; i <= maxMobLevel.Value; i++)
+                for (int i = 2; i <= Settings.maxMobLevel.Value; i++)
                 {
                     var name = $"level_{i}";
                     if (!HasLevelObject(guiObject, i))
                     {
                         var gameObject = Instantiate(guiObject.transform.Find($"level_{i-1}").gameObject, guiObject.transform);
                         gameObject.name = name;
-                        var left = maxMobLevel.Value > 7 ? 28 : 40;
+                        var left = Settings.maxMobLevel.Value > 7 ? 28 : 40;
                         CreateStar(gameObject, starOffset * i - left, i);
                     }
                     guiObject.transform.Find(name).gameObject.SetActive(i <= level);

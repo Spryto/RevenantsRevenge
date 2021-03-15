@@ -59,6 +59,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Settings.cs" />
     <Compile Include="RevenantsRevenge.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

@@ -15,7 +15,7 @@ namespace RevenantsRevenge
     {
         private const string GUID = "spryto.revenants-revenge";
         private const string NAME = "Revenants Revenge";
-        private const string VERSION = "1.0.0";
+        private const string VERSION = "1.0.1";
 
         static ManualLogSource logger;
 

@@ -15,7 +15,7 @@ namespace RevenantsRevenge
     {
         private const string GUID = "spryto.revenants-revenge";
         private const string NAME = "Revenants Revenge";
-        private const string VERSION = "1.0.1";
+        private const string VERSION = "1.0.2";
 
         static ManualLogSource logger;
 
@@ -90,12 +90,7 @@ namespace RevenantsRevenge
                 }
 
                 il.DeclareLocal(typeof(GameObject));
-                var newInstructions = ReplaceInstructions(instructions);
-                foreach(var i in newInstructions)
-                {
-                    logger.LogInfo(i);
-                }    
-                return newInstructions;
+                return ReplaceInstructions(instructions);
             }
 
             static IEnumerable<CodeInstruction> ReplaceInstructions(IEnumerable<CodeInstruction> instructions)

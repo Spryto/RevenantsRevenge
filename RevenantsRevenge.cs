@@ -39,7 +39,10 @@ namespace RevenantsRevenge
             __instance.m_campRadiusMin = Settings.minimumCampSize.Value;
             __instance.m_campRadiusMax = Settings.maximumCampSize.Value;
 
-            __instance.m_zoneSize = new Vector3(192f, 192f, 192f);
+            if (Settings.isNewWorld.Value)
+            {
+                __instance.m_zoneSize = new Vector3(192f, 192f, 192f);
+            }
         }
 
         private static string GetThemeName(Room.Theme theme)
@@ -79,36 +82,55 @@ namespace RevenantsRevenge
         [HarmonyPatch(typeof(Location), "Awake")]
         class ResizeDungeonEnvironmentPatch
         {
-            static void Prefix(ref Location __instance, out bool __state)
+            static IEnumerable<CodeInstruction> Transpiler(ILGenerator il, IEnumerable<CodeInstruction> instructions)
             {
-                __state = __instance.m_hasInterior;
-                __instance.m_hasInterior = false;
+                if (!Settings.isNewWorld.Value)
+                {
+                    return instructions;
+                }
+
+                il.DeclareLocal(typeof(GameObject));
+                var newInstructions = ReplaceInstructions(instructions);
+                foreach(var i in newInstructions)
+                {
+                    logger.LogInfo(i);
+                }    
+                return newInstructions;
             }
 
-            static void Postfix(ref Location __instance, bool __state)
+            static IEnumerable<CodeInstruction> ReplaceInstructions(IEnumerable<CodeInstruction> instructions)
             {
-                __instance.m_hasInterior = __state;
-                if (__instance.m_hasInterior)
-                {
-                    Vector2i zone = ZoneSystem.instance.GetZone(__instance.transform.position);
-                    Vector3 zoneCenter = ZoneSystem.instance.GetZonePos(zone);
+                var methodInfo = SymbolExtensions.GetMethodInfo(() => RescaleEnvZone(null, null));
+                var found = false;
 
-                    var zoneSize = ZoneSystem.instance.m_zoneSize;
-                    if (__instance.name.ToUpperInvariant().Contains("TROLL"))
+                foreach (var instruction in instructions)
+                {
+                    if (instruction.opcode == OpCodes.Dup)
                     {
-                        Vector3 position = new Vector3(zoneCenter.x, __instance.transform.position.y + 5000f, zoneCenter.z);
-                        GameObject gameObject = Instantiate(__instance.m_interiorPrefab, position, Quaternion.identity, __instance.transform);
-                        gameObject.transform.localScale = new Vector3(zoneSize, 250f, zoneSize);
-                        gameObject.GetComponent<EnvZone>().m_environment = __instance.m_interiorEnvironment;
+                        yield return new CodeInstruction(OpCodes.Stloc_2);
+                        yield return new CodeInstruction(OpCodes.Ldloc_2);
+                        continue;
                     }
-                    else
+
+                    yield return instruction;
+
+                    if (!found && instruction.Calls(AccessTools.Method(typeof(Transform), "set_localScale")) && Settings.isNewWorld.Value)
                     {
-                        Vector3 position = new Vector3(zoneCenter.x, __instance.transform.position.y + 5000f, zoneCenter.z);
-                        GameObject gameObject = Instantiate(__instance.m_interiorPrefab, position, Quaternion.identity, __instance.transform);
-                        gameObject.transform.localScale = new Vector3(192f, 500f, 192f);
-                        gameObject.GetComponent<EnvZone>().m_environment = __instance.m_interiorEnvironment;
+                        yield return new CodeInstruction(OpCodes.Ldarg_0);
+                        yield return new CodeInstruction(OpCodes.Ldloc_2);
+                        yield return new CodeInstruction(OpCodes.Call, methodInfo);
+                        yield return new CodeInstruction(OpCodes.Ldloc_2);
+                        found = true;
                     }
                 }
+                if (found is false)
+                    logger.LogError("Unable to find set_localScale");
+            }
+
+            static void RescaleEnvZone(Location __instance, GameObject gameObject)
+            {
+                var scale = __instance.m_hasInterior && !__instance.name.ToUpperInvariant().Contains("TROLL") ? 192 : ZoneSystem.instance.m_zoneSize;
+                gameObject.transform.localScale = new Vector3(scale, 500f, scale);
             }
         }
 

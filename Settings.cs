@@ -16,6 +16,8 @@ namespace RevenantsRevenge
         public static ConfigEntry<int> mobLevelChance;
         public static ConfigEntry<int> mobScale;
 
+        public static ConfigEntry<bool> isNewWorld;
+
         public static void SetConfig(string name, ConfigFile config)
         {
             var minConfigDescription = new ConfigDescription(
@@ -61,6 +63,10 @@ namespace RevenantsRevenge
                 "Percentage, per level",
                 new AcceptableValueRange<int>(0, 500));
             mobScale = config.Bind(name + ".Global", "mob_scale", 10, mobScaleDescription);
+
+            var newWorldDescription = new ConfigDescription(
+                "If you're running this on a world that existed before the mod was installed, change the value to false");
+            isNewWorld = config.Bind(name + ".Global", "new_world", true, newWorldDescription);
 
             isDefaultDifficulty = minMobLevel.Value == 1 && maxMobLevel.Value == 3 && mobLevelChance.Value == 15;
         }

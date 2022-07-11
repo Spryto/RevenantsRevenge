@@ -15,7 +15,7 @@ namespace RevenantsRevenge
     {
         private const string GUID = "spryto.revenants-revenge";
         private const string NAME = "Revenants Revenge";
-        private const string VERSION = "1.0.2";
+        private const string VERSION = "1.0.4";
 
         static ManualLogSource logger;
 
@@ -35,13 +35,16 @@ namespace RevenantsRevenge
         {
             __instance.m_minRooms = Settings.minimumDungeonSize.Value;
             __instance.m_maxRooms = Settings.maximumDungeonSize.Value;
-
+            
             __instance.m_campRadiusMin = Settings.minimumCampSize.Value;
             __instance.m_campRadiusMax = Settings.maximumCampSize.Value;
 
-            if (Settings.isNewWorld.Value)
+            if (Settings.isNewWorld.Value )
             {
-                __instance.m_zoneSize = new Vector3(192f, 192f, 192f);
+                if (GetThemeName(__instance.m_themes).Contains("Mountain"))
+                    __instance.m_zoneSize = new Vector3(192f, 256f, 192f);
+                else
+                    __instance.m_zoneSize = new Vector3(192f, 192f, 192f);
             }
         }
 
@@ -58,7 +61,7 @@ namespace RevenantsRevenge
             }
             if ((theme & Room.Theme.Cave) != 0)
             {
-                themes.Add("Cave");
+                themes.Add("MountainCave");
             }
             if ((theme & Room.Theme.ForestCrypt) != 0)
             {
@@ -137,7 +140,7 @@ namespace RevenantsRevenge
                 public PrefixState(Vector3 point, float radius)
                 {
                     this.point = point;
-                    this.radius = Math.Max(radius, 192);
+                    this.radius = Math.Max(radius, 256);
                 }
 
                 public bool isDungeon { get; set; }
@@ -204,7 +207,11 @@ namespace RevenantsRevenge
                 }
                 retries++;
 
-                if (retries > retry_limit) return false;
+                if (retries > retry_limit)
+                {
+                    retries = 0;
+                    return false;
+                }
 
                 var methodHandler = MethodInvoker.GetHandler(AccessTools.Method(typeof(DungeonGenerator), "PlaceOneRoom"));
                 return (bool)methodHandler.Invoke(__instance, __state);
@@ -228,10 +235,30 @@ namespace RevenantsRevenge
 
                 __instance.m_minLevel = Settings.minMobLevel.Value;
                 __instance.m_maxLevel = Settings.maxMobLevel.Value;
-                __instance.m_levelupChance = Settings.mobLevelChance.Value;
                 if (__instance.m_creaturePrefab.GetComponent(typeof(LevelEffects)) == null)
                 {
                     __instance.m_creaturePrefab.AddComponent(typeof(LevelEffects));
+                }
+            }
+
+            static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                foreach (var instruction in instructions)
+                {
+                    if (Settings.isDefaultDifficulty)
+                    {
+                        yield return instruction;
+                        continue;
+                    }
+                    if (instruction.opcode == OpCodes.Ldc_R4)
+                    {
+                        if ((float)instruction.operand == 10f)
+                        {
+                            instruction.operand = (float)Settings.mobLevelChance.Value;
+                        }
+                    }
+                    yield return instruction;
+                    continue;       
                 }
             }
         }
@@ -254,10 +281,10 @@ namespace RevenantsRevenge
                     __instance.m_levelSetups.Add(levelSetup);
 
                     var levelSetup2 = new LevelEffects.LevelSetup();
-                    levelSetup.m_scale = 1f + 2 * Settings.mobScale.Value / 100f; ;
-                    levelSetup.m_hue = 0.4f;
-                    levelSetup.m_saturation = 0.35f;
-                    levelSetup.m_value = 0.15f;
+                    levelSetup2.m_scale = 1f + 2 * Settings.mobScale.Value / 100f; ;
+                    levelSetup2.m_hue = 0.4f;
+                    levelSetup2.m_saturation = 0.35f;
+                    levelSetup2.m_value = 0.15f;
                     __instance.m_levelSetups.Add(levelSetup2);
                     count = __instance.m_levelSetups.Count;
                 }
